@@ -2,43 +2,104 @@ name: Virtual PC Online
 
 on:
   workflow_dispatch:
-    inputs:
-      access_password:
-        description: "Senha para o usuário (..."
-        required: true
-        default: "1234"
 
 jobs:
-  id:
-    runs-on: ubuntu-latest
+  virtual-pc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
-      - name: Configurar Senha do Usuário
-        run: |
-          echo "runner:${{ github.event.inputs.access_password }}" | ...
-          sudo usermod -p ... sudo runner
-
-      - name: Instalar Servidor de Área de Trabalho e Ferramentas
+      - name: Atualizar sistema
         run: |
           sudo apt update
-          sudo apt install -y xfce4 xfce4-goodies tightvnc...
+          sudo apt upgrade -y
 
-      - name: Instalar o Ngrok
-        uses: ngrok/ngrok-actions@v1
-        with:
-          auth-token: ${{ secrets.NGROK_AUTHTOKEN }}
+      - name: Instalar XFCE e VNC
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y \
+            xfce4 \
+            xfce4-goodies \
+            tigervnc-standalone-server \
+            tigervnc-tools \
+            dbus-x11
+
+      - name: Configurar usuário
+        run: |
+          sudo useradd -m -s /bin/bash vncuser || true
+          echo "vncuser:123456" | sudo chpasswd
+          sudo usermod -aG sudo vncuser
+
+      - name: Configurar VNC
+        run: |
+          sudo -u vncuser mkdir -p /home/vncuser/.vnc
+
+          echo "123456" | sudo -u vncuser vncpasswd -f \
+            | sudo -u vncuser tee /home/vncuser/.vnc/passwd >/dev/null
+
+          sudo chmod 600 /home/vncuser/.vnc/passwd
+
+          sudo -u vncuser bash -c 'cat > /home/vncuser/.vnc/xstartup << "EOF"
+          #!/bin/sh
+          unset SESSION_MANAGER
+          unset DBUS_SESSION_BUS_ADDRESS
+
+          export XDG_CURRENT_DESKTOP=XFCE
+          export XDG_SESSION_DESKTOP=xfce
+          export XDG_CONFIG_DIRS=/etc/xdg/xdg-xfce:/etc/xdg
+          export XDG_DATA_DIRS=/usr/share/xfce4:/usr/local/share:/usr/share
+
+          startxfce4 &
+          EOF'
+
+          sudo chmod +x /home/vncuser/.vnc/xstartup
 
       - name: Iniciar servidor VNC
         run: |
-          vncserver :1 -geometry 1280x720 -depth 24 &
-          echo "iniciando na porta 5901"
+          sudo -u vncuser vncserver :1 \
+            -geometry 1280x720 \
+            -depth 24
 
-          ... VNC via Ngrok (TCP)
-          ngrok tcp 5901 &
+          sleep 5
 
-      - name: Manter a Máquina Ativa
+          echo "Servidor VNC iniciado na porta 5901"
+
+      - name: Instalar Ngrok
         run: |
-          echo "PC Virtual pronto! Use um cliente VNC (...)
-          sleep infinity
+          curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+
+          echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
+            | sudo tee /etc/apt/sources.list.d/ngrok.list
+
+          sudo apt update
+          sudo apt install -y ngrok
+
+      - name: Configurar Ngrok
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          ngrok config add-authtoken "$NGROK_AUTHTOKEN"
+
+      - name: Iniciar túnel VNC
+        run: |
+          nohup ngrok tcp 5901 > /tmp/ngrok.log 2>&1 &
+
+          sleep 10
+
+          echo "======================================"
+          echo "       VIRTUAL PC ONLINE"
+          echo "======================================"
+
+          cat /tmp/ngrok.log
+
+          echo ""
+          echo "Aguardando conexão..."
+          echo "======================================"
+
+      - name: Manter máquina ativa
+        run: |
+          while true; do
+            echo "Virtual PC ativo..."
+            sleep 60
+          done
