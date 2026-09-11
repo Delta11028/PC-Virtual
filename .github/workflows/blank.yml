@@ -102,4 +102,72 @@ jobs:
           while true; do
             echo "Virtual PC ativo..."
             sleep 60
+          done          echo "123456" | sudo -u vncuser vncpasswd -f \
+            | sudo -u vncuser tee /home/vncuser/.vnc/passwd >/dev/null
+
+          sudo chmod 600 /home/vncuser/.vnc/passwd
+
+          sudo -u vncuser bash -c 'cat > /home/vncuser/.vnc/xstartup << "EOF"
+          #!/bin/sh
+          unset SESSION_MANAGER
+          unset DBUS_SESSION_BUS_ADDRESS
+
+          export XDG_CURRENT_DESKTOP=XFCE
+          export XDG_SESSION_DESKTOP=xfce
+          export XDG_CONFIG_DIRS=/etc/xdg/xdg-xfce:/etc/xdg
+          export XDG_DATA_DIRS=/usr/share/xfce4:/usr/local/share:/usr/share
+
+          startxfce4 &
+          EOF'
+
+          sudo chmod +x /home/vncuser/.vnc/xstartup
+
+      - name: Iniciar servidor VNC
+        run: |
+          sudo -u vncuser vncserver :1 \
+            -geometry 1280x720 \
+            -depth 24
+
+          sleep 5
+
+          echo "Servidor VNC iniciado na porta 5901"
+
+      - name: Instalar Ngrok
+        run: |
+          curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+
+          echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
+            | sudo tee /etc/apt/sources.list.d/ngrok.list
+
+          sudo apt update
+          sudo apt install -y ngrok
+
+      - name: Configurar Ngrok
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          ngrok config add-authtoken "$NGROK_AUTHTOKEN"
+
+      - name: Iniciar túnel VNC
+        run: |
+          nohup ngrok tcp 5901 > /tmp/ngrok.log 2>&1 &
+
+          sleep 10
+
+          echo "======================================"
+          echo "       VIRTUAL PC ONLINE"
+          echo "======================================"
+
+          cat /tmp/ngrok.log
+
+          echo ""
+          echo "Aguardando conexão..."
+          echo "======================================"
+
+      - name: Manter máquina ativa
+        run: |
+          while true; do
+            echo "Virtual PC ativo..."
+            sleep 60
           done
