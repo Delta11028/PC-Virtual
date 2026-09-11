@@ -1,0 +1,202 @@
+name: Virtual PC Online
+
+on:
+  workflow_dispatch:
+
+jobs:
+  virtual-pc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+
+      - name: Atualizar sistema
+        run: |
+          set -euxo pipefail
+          sudo apt update
+          sudo apt upgrade -y
+
+      - name: Instalar XFCE e VNC
+        run: |
+          set -euxo pipefail
+
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y \
+            xfce4 \
+            xfce4-goodies \
+            tigervnc-standalone-server \
+            tigervnc-tools \
+            dbus-x11
+
+          echo "=== VERSÃO DO VNC ==="
+          vncserver --version || true
+
+      - name: Configurar usuário
+        run: |
+          set -euxo pipefail
+
+          sudo useradd -m -s /bin/bash vncuser || true
+
+          echo "vncuser:123456" | sudo chpasswd
+
+          sudo usermod -aG sudo vncuser
+
+          sudo mkdir -p /home/vncuser/.config/tigervnc
+          sudo chown -R vncuser:vncuser /home/vncuser/.config
+
+      - name: Configurar VNC
+        run: |
+          set -euxo pipefail
+
+          sudo -u vncuser bash -c '
+            mkdir -p ~/.config/tigervnc
+
+            printf "123456\n" | vncpasswd -f > ~/.config/tigervnc/passwd
+
+            chmod 600 ~/.config/tigervnc/passwd
+
+            cat > ~/.config/tigervnc/xstartup << "EOF"
+#!/bin/sh
+
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+export XDG_CURRENT_DESKTOP=XFCE
+export XDG_SESSION_DESKTOP=xfce
+
+exec startxfce4
+EOF
+
+            chmod +x ~/.config/tigervnc/xstartup
+          '
+
+          echo "=== CONFIGURAÇÃO ==="
+          sudo -u vncuser ls -la /home/vncuser/.config/tigervnc
+
+      - name: Iniciar VNC
+        run: |
+          set -euxo pipefail
+
+          sudo -u vncuser vncserver :1 \
+            -geometry 1280x720 \
+            -depth 24 \
+            -localhost no
+
+          sleep 5
+
+          echo "=== PROCESSOS VNC ==="
+          ps aux | grep -i vnc || true
+
+          echo "=== PORTA 5901 ==="
+          sudo ss -lntp | grep 5901 || true
+
+          echo "=== LOGS VNC ==="
+          sudo find /home/vncuser/.config/tigervnc \
+            -type f \
+            -maxdepth 1 \
+            -print \
+            -exec cat {} \; || true
+
+      - name: Instalar Ngrok
+        run: |
+          set -euxo pipefail
+
+          curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+
+          echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
+            | sudo tee /etc/apt/sources.list.d/ngrok.list
+
+          sudo apt update
+          sudo apt install -y ngrok
+
+          echo "=== VERSÃO NGROK ==="
+          ngrok version
+
+      - name: Configurar Ngrok
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          set -euxo pipefail
+
+          if [ -z "$NGROK_AUTHTOKEN" ]; then
+            echo "ERRO: NGROK_AUTHTOKEN não foi configurado."
+            exit 1
+          fi
+
+          ngrok config add-authtoken "$NGROK_AUTHTOKEN"
+
+          echo "Ngrok configurado."
+
+      - name: Iniciar túnel VNC
+        run: |
+          set -euxo pipefail
+
+          echo "=== TESTANDO PORTA 5901 ==="
+          sudo ss -lntp | grep 5901
+
+          echo "=== INICIANDO NGROK ==="
+
+          nohup ngrok tcp 5901 \
+            --log=stdout \
+            > /tmp/ngrok.log 2>&1 &
+
+          NGROK_PID=$!
+
+          echo "PID do Ngrok: $NGROK_PID"
+
+          sleep 10
+
+          echo "=== LOG DO NGROK ==="
+          cat /tmp/ngrok.log
+
+          echo "=== PROCESSO NGROK ==="
+          ps aux | grep ngrok || true
+
+      - name: Informações da máquina
+        run: |
+          echo "======================================"
+          echo "       VIRTUAL PC ONLINE"
+          echo "======================================"
+
+          echo ""
+          echo "=== SISTEMA ==="
+          uname -a
+
+          echo ""
+          echo "=== CPU ==="
+          nproc
+
+          echo ""
+          echo "=== MEMÓRIA ==="
+          free -h
+
+          echo ""
+          echo "=== PORTA VNC ==="
+          sudo ss -lntp | grep 5901 || true
+
+          echo ""
+          echo "=== NGROK ==="
+          cat /tmp/ngrok.log || true
+
+          echo ""
+          echo "======================================"
+
+      - name: Manter máquina ativa
+        run: |
+          while true; do
+            echo "Virtual PC ativo..."
+            date
+
+            if ! pgrep -x ngrok > /dev/null; then
+              echo "ERRO: Ngrok foi encerrado."
+              cat /tmp/ngrok.log || true
+              exit 1
+            fi
+
+            if ! sudo ss -lnt | grep -q ":5901"; then
+              echo "ERRO: VNC não está mais escutando na porta 5901."
+              exit 1
+            fi
+
+            sleep 60
+          done
