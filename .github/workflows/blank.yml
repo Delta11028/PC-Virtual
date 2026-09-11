@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # Mantém a máquina ligada por até 6 horas
+    timeout-minutes: 360 # Mantém a máquina ligada por até 6 hours
 
     steps:
       - name: Checkout Repository
@@ -30,11 +30,18 @@ jobs:
       - name: Conectar ao Tailscale
         uses: tailscale/github-action@v2
         with:
-          oauth-client-id: "" # Se usar chave de autenticação simples (tskey-auth-...), deixe este parâmetro como está
           authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
 
       - name: Iniciar Servidor VNC
         run: |
+          vncserver :1 -geometry 1280x720 -depth 24 &
+          echo "VNC iniciado na porta 5901"
+
+      - name: Manter a Máquina Ativa
+        run: |
+          echo "PC Virtual conectado via Tailscale!"
+          echo "Acesse usando o IP Tailscale da máquina na porta 5901."
+          sleep infinity        run: |
           vncserver :1 -geometry 1280x720 -depth 24 &
           echo "VNC iniciado na porta 5901"
 
