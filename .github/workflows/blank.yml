@@ -1,45 +1,39 @@
-name: Windows 11 Virtual PC
+name: Windows Virtual PC
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 360
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Instalar e Conectar ao Tailscale
+      - name: Configurar Senha do Usuário
         run: |
-          AUTH_KEY="${{ secrets.TAISSCALE_AUTH_KEY }}"
-          if [ -z "$AUTH_KEY" ]; then
-            echo "::error::A Secret TAISSCALE_AUTH_KEY não foi encontrada!"
-            exit 1
-          fi
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey="$AUTH_KEY" --hostname=github-runner
+          net user runner 123456 /add
+          net localgroup administrators runner /add
 
-      - name: Iniciar o Windows 11 no Docker
+      - name: Instalar e Conectar ao Tailscale
+        shell: powershell
         run: |
-          sudo docker run -d \
-            --name windows11 \
-            --device=/dev/kvm \
-            --cap-add=NET_ADMIN \
-            -p 3389:3389/tcp \
-            -e RAM_SIZE="4G" \
-            -e CPU_CORES="2" \
-            -e USERNAME="runner" \
-            -e PASSWORD="123456" \
-            dockur/windows
+          $AUTH_KEY = "${{ secrets.TAISSCALE_AUTH_KEY }}"
+          if (-not $AUTH_KEY) {
+            echo "::error::A Secret TAISSCALE_AUTH_KEY nao foi encontrada!"
+            exit 1
+          }
+          echo "Baixando e instalando Tailscale..."
+          choco install tailscale -y
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="$AUTH_KEY" --hostname=github-windows
 
       - name: Manter a Máquina Ativa e Mostrar IP
+        shell: powershell
         run: |
-          echo "=========================================="
-          echo "Aguarde de 3 a 5 minutos até o Windows 11 iniciar!"
-          echo "Seu IP do Tailscale é:"
-          sudo tailscale ip -4
-          echo "=========================================="
-          sleep infinity
+          Write-Host "=========================================="
+          Write-Host "Windows Virtual conectado com sucesso!"
+          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          Write-Host "=========================================="
+          Start-Sleep -Seconds 21600
