@@ -17,6 +17,17 @@ jobs:
           net user winuser Runner#123456 /add
           net localgroup administrators winuser /add
 
+      - name: Otimizar Uso de SSD e CPU
+        shell: powershell
+        run: |
+          Write-Host "Desativando servicos pesados do Windows..."
+          Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
+          Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service -Name "WSearch" -Force -ErrorAction SilentlyContinue
+          Set-Service -Name "WSearch" -StartupType Disabled -ErrorAction SilentlyContinue
+          Stop-Service -Name "wuauserv" -Force -ErrorAction SilentlyContinue
+          Set-Service -Name "wuauserv" -StartupType Disabled -ErrorAction SilentlyContinue
+
       - name: Habilitar Acesso Remoto (RDP)
         shell: powershell
         run: |
@@ -34,6 +45,15 @@ jobs:
           echo "Baixando e instalando Tailscale..."
           choco install tailscale -y
           & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="$AUTH_KEY" --hostname=github-windows
+
+      - name: Manter a Máquina Ativa e Mostrar IP
+        shell: powershell
+        run: |
+          Write-Host "=========================================="
+          Write-Host "Windows Virtual otimizado e conectado!"
+          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          Write-Host "=========================================="
+          Start-Sleep -Seconds 21600
 
       - name: Manter a Máquina Ativa e Mostrar IP
         shell: powershell
