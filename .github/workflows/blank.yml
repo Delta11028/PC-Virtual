@@ -12,9 +12,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Configurar Senha do Usuário
+      - name: Criar Usuário do Windows
         run: |
-          net user runner Runner#123456
+          net user winuser Runner#123456 /add
+          net localgroup administrators winuser /add
 
       - name: Habilitar Acesso Remoto (RDP)
         shell: powershell
@@ -39,9 +40,6 @@ jobs:
         run: |
           Write-Host "=========================================="
           Write-Host "Windows Virtual conectado com sucesso!"
-          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-          Write-Host "=========================================="
-          Start-Sleep -Seconds 21600
           & "C:\Program Files\Tailscale\tailscale.exe" ip -4
           Write-Host "=========================================="
           Start-Sleep -Seconds 21600
