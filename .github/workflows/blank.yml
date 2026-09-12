@@ -29,8 +29,15 @@ jobs:
 
       - name: Instalar e Conectar ao Tailscale
         run: |
+          AUTH_KEY="${{ secrets.TAISSCALE_AUTH_KEY }}"
+
+          if [ -z "$AUTH_KEY" ]; then
+            echo "::error::A Secret TAISSCALE_AUTH_KEY não foi encontrada ou está vazia!"
+            exit 1
+          fi
+
           curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname=github-runner
+          sudo tailscale up --authkey="$AUTH_KEY" --hostname=github-runner
 
       - name: Iniciar Servidor VNC
         run: |
@@ -42,3 +49,4 @@ jobs:
           echo "PC Virtual conectado via Tailscale!"
           sudo tailscale ip -4
           sleep infinity
+          
