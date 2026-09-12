@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       access_password:
-        description: 'Defina uma senha para o usuário (ou deixe o padrão)'
+        description: 'Defina a senha de acesso da máquina'
         required: true
         default: '123456'
 
@@ -22,31 +22,27 @@ jobs:
           echo "runner:${{ github.event.inputs.access_password }}" | sudo chpasswd
           sudo usermod -aG sudo runner
 
-      - name: Instalar Servidor de Área de Trabalho e VNC
+      - name: Instalar Área de Trabalho e Servidor RDP
         run: |
           sudo apt update
-          sudo apt install -y xfce4 xfce4-goodies tightvncserver
+          sudo apt install -y xfce4 xfce4-goodies xrdp
+          sudo adduser xrdp ssl-cert
+          echo "xfce4-session" > ~/.xsession
+          sudo systemctl start xrdp
 
       - name: Instalar e Conectar ao Tailscale
         run: |
           AUTH_KEY="${{ secrets.TAISSCALE_AUTH_KEY }}"
-
           if [ -z "$AUTH_KEY" ]; then
-            echo "::error::A Secret TAISSCALE_AUTH_KEY não foi encontrada ou está vazia!"
+            echo "::error::A Secret TAISSCALE_AUTH_KEY não foi encontrada!"
             exit 1
           fi
-
           curl -fsSL https://tailscale.com/install.sh | sh
           sudo tailscale up --authkey="$AUTH_KEY" --hostname=github-runner
 
-      - name: Iniciar Servidor VNC
-        run: |
-          vncserver :1 -geometry 1280x720 -depth 24 &
-          echo "VNC iniciado na porta 5901"
-
       - name: Manter a Máquina Ativa
         run: |
-          echo "PC Virtual conectado via Tailscale!"
+          echo "PC Virtual pronto para RDP (RD Client)!"
           sudo tailscale ip -4
           sleep infinity
           
