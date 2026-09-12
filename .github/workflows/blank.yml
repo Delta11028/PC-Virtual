@@ -28,13 +28,9 @@ jobs:
           sudo apt install -y xfce4 xfce4-goodies tightvncserver
 
       - name: Instalar e Conectar ao Tailscale
-        env:
-          TAILSCALE_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscaled --state=mem: &
-          sleep 3
-          sudo tailscale up --authkey=${TAILSCALE_KEY} --hostname=github-runner
+          sudo tailscale up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname=github-runner
 
       - name: Iniciar Servidor VNC
         run: |
@@ -46,4 +42,3 @@ jobs:
           echo "PC Virtual conectado via Tailscale!"
           sudo tailscale ip -4
           sleep infinity
-          
