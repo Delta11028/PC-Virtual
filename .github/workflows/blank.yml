@@ -14,8 +14,13 @@ jobs:
 
       - name: Configurar Senha do Usuário
         run: |
-          net user runner 123456 /add
-          net localgroup administrators runner /add
+          net user runner Runner#123456
+
+      - name: Habilitar Acesso Remoto (RDP)
+        shell: powershell
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
       - name: Instalar e Conectar ao Tailscale
         shell: powershell
@@ -34,6 +39,9 @@ jobs:
         run: |
           Write-Host "=========================================="
           Write-Host "Windows Virtual conectado com sucesso!"
+          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
+          Write-Host "=========================================="
+          Start-Sleep -Seconds 21600
           & "C:\Program Files\Tailscale\tailscale.exe" ip -4
           Write-Host "=========================================="
           Start-Sleep -Seconds 21600
