@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # Mantém a máquina ligada por até 6 horas
+    timeout-minutes: 360
 
     steps:
       - name: Checkout Repository
@@ -27,10 +27,14 @@ jobs:
           sudo apt update
           sudo apt install -y xfce4 xfce4-goodies tightvncserver
 
-      - name: Conectar ao Tailscale
-        uses: tailscale/github-action@v1
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      - name: Instalar e Conectar ao Tailscale
+        env:
+          TAILSCALE_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo tailscaled --state=mem: &
+          sleep 3
+          sudo tailscale up --authkey=${TAILSCALE_KEY} --hostname=github-runner
 
       - name: Iniciar Servidor VNC
         run: |
@@ -40,5 +44,6 @@ jobs:
       - name: Manter a Máquina Ativa
         run: |
           echo "PC Virtual conectado via Tailscale!"
-          echo "Acesse usando o IP Tailscale da máquina na porta 5901."
+          sudo tailscale ip -4
           sleep infinity
+          
