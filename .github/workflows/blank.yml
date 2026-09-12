@@ -1,12 +1,7 @@
-name: Virtual PC Online
+name: Windows 11 Virtual PC
 
 on:
   workflow_dispatch:
-    inputs:
-      access_password:
-        description: 'Defina a senha de acesso da máquina'
-        required: true
-        default: '123456'
 
 jobs:
   build:
@@ -16,19 +11,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Configurar Senha do Usuário
-        run: |
-          echo "runner:${{ github.event.inputs.access_password }}" | sudo chpasswd
-          sudo usermod -aG sudo runner
-
-      - name: Instalar Área de Trabalho e Servidor RDP
-        run: |
-          sudo apt update
-          sudo apt install -y xfce4 xfce4-goodies xrdp
-          sudo adduser xrdp ssl-cert
-          echo "xfce4-session" > ~/.xsession
-          sudo systemctl start xrdp
 
       - name: Instalar e Conectar ao Tailscale
         run: |
@@ -40,9 +22,24 @@ jobs:
           curl -fsSL https://tailscale.com/install.sh | sh
           sudo tailscale up --authkey="$AUTH_KEY" --hostname=github-runner
 
-      - name: Manter a Máquina Ativa
+      - name: Iniciar o Windows 11 no Docker
         run: |
-          echo "PC Virtual pronto para RDP (RD Client)!"
+          sudo docker run -d \
+            --name windows11 \
+            --device=/dev/kvm \
+            --cap-add=NET_ADMIN \
+            -p 3389:3389/tcp \
+            -e RAM_SIZE="4G" \
+            -e CPU_CORES="2" \
+            -e USERNAME="runner" \
+            -e PASSWORD="123456" \
+            dockur/windows
+
+      - name: Manter a Máquina Ativa e Mostrar IP
+        run: |
+          echo "=========================================="
+          echo "Aguarde de 3 a 5 minutos até o Windows 11 iniciar!"
+          echo "Seu IP do Tailscale é:"
           sudo tailscale ip -4
+          echo "=========================================="
           sleep infinity
-          
